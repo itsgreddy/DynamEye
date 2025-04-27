@@ -1,4 +1,4 @@
-# DynaMeye
+# DynamEye
 
 A Flutter proof-of-concept app that displays a live camera feed with a circular zoom overlay at the center. The zoom region can be toggled on or off, and the app is designed for clean, full-screen visuals (ideal for AR glasses screencasting).
 
