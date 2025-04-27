@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'zoom_overlay.dart';
+import 'dart:developer';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,7 +18,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'DynaMeye',
+      title: 'DynamEye',
       theme: ThemeData(
         primarySwatch: Colors.blue,
         brightness: Brightness.dark,
@@ -40,16 +41,29 @@ class CameraScreenState extends State<CameraScreen> {
   late CameraController _controller;
   bool _isZoomEnabled = false;
   bool _isCameraInitialized = false;
+  bool _showCamera = false;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _initializeCamera();
+    // Do not initialize camera immediately
   }
 
   Future<void> _initializeCamera() async {
+    log('Requesting camera permission...');
     final status = await Permission.camera.request();
+    log('Camera permission status: $status');
     if (status.isGranted) {
+      log('Available cameras: ${widget.cameras}');
+      if (widget.cameras.isEmpty) {
+        log('No cameras found on device.');
+        setState(() {
+          _errorMessage = 'No cameras found on this device.';
+        });
+        return;
+      }
+      log('Initializing camera controller...');
       _controller = CameraController(
         widget.cameras[0],
         ResolutionPreset.high,
@@ -58,23 +72,93 @@ class CameraScreenState extends State<CameraScreen> {
 
       try {
         await _controller.initialize();
+        log('Camera initialized!');
         setState(() {
           _isCameraInitialized = true;
         });
       } catch (e) {
-        print('Error initializing camera: $e');
+        log('Error initializing camera: $e');
+        setState(() {
+          _errorMessage = 'Error initializing camera: $e';
+        });
       }
+    } else if (status.isDenied || status.isPermanentlyDenied || status.isRestricted) {
+      log('Camera permission not granted.');
+      setState(() {
+        _errorMessage = 'Camera permission not granted. Please enable it in Settings.';
+      });
     }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    if (_isCameraInitialized) {
+      _controller.dispose();
+    }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (!_showCamera) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'DynamEye',
+                style: TextStyle(
+                  fontSize: 36,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 2,
+                ),
+              ),
+              const SizedBox(height: 40),
+              ElevatedButton(
+                onPressed: () async {
+                  setState(() {
+                    _showCamera = true;
+                  });
+                  await _initializeCamera();
+                },
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                  textStyle: const TextStyle(fontSize: 20),
+                ),
+                child: const Text('Open Camera'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              setState(() {
+                _showCamera = false;
+                _isCameraInitialized = false;
+                _errorMessage = null;
+              });
+            },
+          ),
+          title: const Text('Camera'),
+        ),
+        body: Center(
+          child: Text(
+            _errorMessage!,
+            style: const TextStyle(fontSize: 18, color: Colors.red),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+
     if (!_isCameraInitialized) {
       return const Scaffold(
         body: Center(
@@ -84,6 +168,19 @@ class CameraScreenState extends State<CameraScreen> {
     }
 
     return Scaffold(
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            setState(() {
+              _showCamera = false;
+              _isCameraInitialized = false;
+              _errorMessage = null;
+            });
+          },
+        ),
+        title: const Text('Camera'),
+      ),
       body: Stack(
         children: [
           ZoomOverlay(
