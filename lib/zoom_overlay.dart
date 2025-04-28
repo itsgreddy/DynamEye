@@ -3,11 +3,15 @@ import 'package:flutter/material.dart';
 class ZoomOverlay extends StatelessWidget {
   final bool isZoomEnabled;
   final Widget child;
+  final double zoom;
+  final double bubbleDiameter;
 
   const ZoomOverlay({
     super.key,
     required this.isZoomEnabled,
     required this.child,
+    this.zoom = 2.0,
+    this.bubbleDiameter = 200.0,
   });
 
   @override
@@ -21,8 +25,8 @@ class ZoomOverlay extends StatelessWidget {
         child,
         Center(
           child: Container(
-            width: 200,
-            height: 200,
+            width: bubbleDiameter,
+            height: bubbleDiameter,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
@@ -32,7 +36,7 @@ class ZoomOverlay extends StatelessWidget {
             ),
             child: ClipOval(
               child: Transform.scale(
-                scale: 2.0,
+                scale: zoom,
                 child: child,
               ),
             ),
