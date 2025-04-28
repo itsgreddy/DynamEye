@@ -20,11 +20,12 @@ class ZoomOverlay extends StatelessWidget {
       return child;
     }
 
-    return Stack(
-      children: [
-        child,
-        Center(
-          child: Container(
+    return Center(
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          child,
+          Container(
             width: bubbleDiameter,
             height: bubbleDiameter,
             decoration: BoxDecoration(
@@ -36,13 +37,14 @@ class ZoomOverlay extends StatelessWidget {
             ),
             child: ClipOval(
               child: Transform.scale(
-                scale: zoom,
+                scaleX: zoom,
+                scaleY: zoom * 16 / 9,
                 child: child,
               ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
-} 
+}
