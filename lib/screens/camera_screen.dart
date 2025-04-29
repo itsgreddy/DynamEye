@@ -20,7 +20,7 @@ class _CameraScreenState extends State<CameraScreen>
     with WidgetsBindingObserver {
   late CameraControllerProvider _cameraProvider;
   late WebSocketService _webSocketService;
-  double zoom = 1.0;
+  double zoom = 2.0;
   double bubbleDiameter = 200.0;
   bool isZoomEnabled = true;
   bool isStreaming = false;
@@ -172,7 +172,7 @@ class _CameraScreenState extends State<CameraScreen>
         centerTitle: true,
         actions: [
           // WebSocket buttons commented out for now
-/*          ValueListenableBuilder<bool>(
+          /*          ValueListenableBuilder<bool>(
             valueListenable: _webSocketService.isConnected,
             builder: (context, isConnected, child) {
               return ValueListenableBuilder<String>(
@@ -204,7 +204,8 @@ class _CameraScreenState extends State<CameraScreen>
               );
             },
           ),
-*/        ],
+*/
+        ],
       ),
 
       body: Column(
@@ -252,7 +253,7 @@ class _CameraScreenState extends State<CameraScreen>
         ],
       ),
       // Streaming / share button commented out for now
-/*      floatingActionButton: ValueListenableBuilder<bool>(
+      /*      floatingActionButton: ValueListenableBuilder<bool>(
         valueListenable: _webSocketService.isConnected,
         builder: (context, isConnected, child) {
           return FloatingActionButton(
@@ -265,6 +266,7 @@ class _CameraScreenState extends State<CameraScreen>
           );
         },
       ),
-*/    );
+*/
+    );
   }
 }

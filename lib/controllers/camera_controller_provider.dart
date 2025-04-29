@@ -3,13 +3,13 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import 'tflite_helper.dart';
+import 'package:flutter/foundation.dart';
 
-class CameraControllerProvider with ChangeNotifier {
+class CameraControllerProvider extends ChangeNotifier {
   final CameraDescription cameraDescription;
   final ResolutionPreset resolutionPreset;
   CameraController? _controller;
   bool _isProcessing = false;
-  bool _isInitialized = false;
   bool _isInitializing = false;
   Map<String, dynamic>? _detectionResults;
 
@@ -18,7 +18,7 @@ class CameraControllerProvider with ChangeNotifier {
   double _currentZoom = 1.0;
 
   CameraController? get controller => _controller;
-  bool get isInitialized => _isInitialized;
+  bool get isInitialized => _controller?.value.isInitialized ?? false;
   bool get isInitializing => _isInitializing;
   Map<String, dynamic>? get detectionResults => _detectionResults;
   bool get isProcessing => _isProcessing;
@@ -32,7 +32,6 @@ class CameraControllerProvider with ChangeNotifier {
   });
 
   Future<void> initialize() async {
-    if (_controller != null) return;
     if (_isInitializing) return;
     _isInitializing = true;
 
@@ -44,7 +43,6 @@ class CameraControllerProvider with ChangeNotifier {
       );
 
       await _controller!.initialize();
-      _isInitialized = true;
 
       // query device zoom range and clamp max to 20×
       final deviceMin = await _controller!.getMinZoomLevel();
@@ -55,11 +53,13 @@ class CameraControllerProvider with ChangeNotifier {
       _currentZoom = _minZoom;
       await _controller!.setZoomLevel(_currentZoom);
 
+      _isInitializing = false;
       notifyListeners();
 
       await _controller!.startImageStream(_processImage);
     } catch (e) {
-      _isInitialized = false;
+      print('Error initializing camera: $e');
+      _isInitializing = false;
       notifyListeners();
     } finally {
       _isInitializing = false;
@@ -140,8 +140,8 @@ class CameraControllerProvider with ChangeNotifier {
     _controller?.stopImageStream();
     _controller?.dispose();
     _controller = null;
-    _isInitialized = false;
     TFLiteHelper.dispose();
     notifyListeners();
+    super.dispose();
   }
 }
