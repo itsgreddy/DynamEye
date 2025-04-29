@@ -8,10 +8,11 @@ class CameraControllerProvider with ChangeNotifier {
   final ResolutionPreset resolutionPreset;
   CameraController? _controller;
   bool _isProcessing = false;
+  bool _isInitialized = false;
   Map<String, dynamic>? _detectionResults;
 
   CameraController? get controller => _controller;
-  bool get isInitialized => _controller?.value.isInitialized ?? false;
+  bool get isInitialized => _isInitialized;
   Map<String, dynamic>? get detectionResults => _detectionResults;
   bool get isProcessing => _isProcessing;
 
@@ -21,14 +22,25 @@ class CameraControllerProvider with ChangeNotifier {
   });
 
   Future<void> initialize() async {
-    _controller = CameraController(
-      cameraDescription,
-      resolutionPreset,
-      enableAudio: false,
-    );
+    if (_controller != null) return;
 
-    await _controller!.initialize();
-    await _controller!.startImageStream(_processImage);
+    try {
+      _controller = CameraController(
+        cameraDescription,
+        resolutionPreset,
+        enableAudio: false,
+      );
+
+      await _controller!.initialize();
+      _isInitialized = true;
+      notifyListeners();
+
+      await _controller!.startImageStream(_processImage);
+    } catch (e) {
+      print('Error initializing camera: $e');
+      _isInitialized = false;
+      notifyListeners();
+    }
   }
 
   Future<void> _processImage(CameraImage image) async {
@@ -50,14 +62,23 @@ class CameraControllerProvider with ChangeNotifier {
     }
   }
 
-  Future<List<List<List<List<double>>>>> _preprocessCameraImage(CameraImage image) async {
+  Future<List<List<List<List<double>>>>> _preprocessCameraImage(
+    CameraImage image,
+  ) async {
     final img.Image rgbImage = _convertYUV420toImage(image);
-    final img.Image resizedImage = img.copyResize(rgbImage, width: 300, height: 300);
+    final img.Image resizedImage = img.copyResize(
+      rgbImage,
+      width: 300,
+      height: 300,
+    );
 
-    List<List<List<List<double>>>> input = List.generate(1,
-      (_) => List.generate(300,
-        (_) => List.generate(300,
-          (_) => List.filled(3, 0.0))));
+    List<List<List<List<double>>>> input = List.generate(
+      1,
+      (_) => List.generate(
+        300,
+        (_) => List.generate(300, (_) => List.filled(3, 0.0)),
+      ),
+    );
 
     for (int y = 0; y < 300; y++) {
       for (int x = 0; x < 300; x++) {
@@ -95,6 +116,8 @@ class CameraControllerProvider with ChangeNotifier {
     _controller?.stopImageStream();
     _controller?.dispose();
     _controller = null;
+    _isInitialized = false;
     TFLiteHelper.dispose();
+    notifyListeners();
   }
 }
