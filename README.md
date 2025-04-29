@@ -83,6 +83,35 @@ It is intended for future integration with AR glasses to aid individuals with vi
    ```bash
    flutter clean
    flutter run
+
+## Websocket Streaming Setup
+
+1. **Set up the streaming server:**
+   ```sh
+   # Navigate to the server directory
+   cd server
+
+   # Install server dependencies
+   npm install
+
+   # Start the server in development mode (with auto-reload)
+   npm run dev
+
+   # Or start in production mode
+   npm start
+   ```
+   The server will start on port 8080 by default. You can change the port by setting the `PORT` environment variable:
+   ```sh
+   PORT=3000 npm start
+   ```
+
+2. **Run the Flutter app:**
+   ```sh
+   # For local testing (localhost)
+   flutter run --dart-define=SERVER_URL=ws://localhost:8080 --dart-define=VIEWER_URL=http://localhost:8080
+
+   # For testing on a local network (replace with your computer's IP)
+   flutter run --dart-define=SERVER_URL=ws://192.168.1.xxx:8080 --dart-define=VIEWER_URL=http://192.168.1.xxx:8080
    ```
 
 ### Troubleshooting
@@ -112,14 +141,25 @@ The server package includes the following npm scripts:
 - `npm test` - (Placeholder for future test implementation)
 
 ## File Structure
-- `lib/main.dart` — Main app logic, camera handling, and UI
+- `lib/main.dart` — Main app entry point
 - `lib/controllers/tflite_helper.dart` — TensorFlow Lite model loading and inference logic
 - `lib/controllers/camera_controller_provider.dart` — Camera controller logic
 - `lib/screens/camera_screen.dart` — UI for the live camera feed
+- `lib/widgets/camera_view.dart` — Camera preview widget
+- `lib/widgets/camera_controls.dart` — Camera control widgets
+- `lib/services/web_socket_service.dart` — WebSocket streaming service
+- `lib/config.dart` — Environment configuration
 - `assets/models/ssd_mobilenet_v2.tflite` — TensorFlow Lite model file
 - `assets/labels.txt` — Labels for object detection
-- `ios/` — iOS-specific configurations and dependencies
-- `android/` — Android-specific configurations and dependencies
+- `server/` — WebSocket streaming server
+  - `src/server.js` — Main server implementation
+  - `public/` — Static files for the viewer
+  - `package.json` — Server dependencies and scripts
+
+## Configuration
+The app uses environment variables for server configuration:
+- `SERVER_URL`: WebSocket server URL (default: ws://localhost:8080)
+- `VIEWER_URL`: HTTP viewer URL (default: http://localhost:8080)
 
 ## Notes
 - This is a proof-of-concept, not production code.
