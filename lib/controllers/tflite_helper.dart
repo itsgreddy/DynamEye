@@ -1,8 +1,10 @@
 import 'package:tflite_flutter/tflite_flutter.dart';
+import 'package:flutter/services.dart' show rootBundle;
 
 class TFLiteHelper {
   static late Interpreter _interpreter;
   static bool _isModelLoaded = false;
+  static List<String> _labels = [];
 
   static Future<void> loadModel() async {
     try {
@@ -10,9 +12,30 @@ class TFLiteHelper {
         'assets/models/ssd_mobilenet_v2.tflite',
       );
       _isModelLoaded = true;
+
+      await loadLabels();
     } catch (e) {
       _isModelLoaded = false;
       rethrow;
+    }
+  }
+
+  static Future<void> loadLabels() async {
+    try {
+      // Load labels from the text file
+      final labelsData = await rootBundle.loadString(
+        'assets/labels/labels.txt',
+      );
+
+      // Split by newline and remove any empty strings
+      _labels =
+          labelsData.split('\n').where((label) => label.isNotEmpty).toList();
+
+      print('Loaded ${_labels.length} labels');
+    } catch (e) {
+      print('Error loading labels: $e');
+      // Initialize with an empty list so the app can still run
+      _labels = [];
     }
   }
 
@@ -46,6 +69,7 @@ class TFLiteHelper {
 
       return {
         "class": maxIndex,
+        "label": getLabel(maxIndex),
         "confidence": maxScore / 255.0,
         "scores": outputScores,
       };
@@ -53,6 +77,22 @@ class TFLiteHelper {
       rethrow;
     }
   }
+
+  static String getLabel(int index) {
+    if (_labels.isEmpty) {
+      return 'Class $index';
+    }
+
+    // Make sure index is within bounds
+    if (index >= 0 && index < _labels.length) {
+      return _labels[index];
+    } else {
+      return 'Unknown (Class $index)';
+    }
+  }
+
+  // Get all loaded labels
+  static List<String> get labels => _labels;
 
   static void dispose() {
     if (_isModelLoaded) {

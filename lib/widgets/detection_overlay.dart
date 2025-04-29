@@ -12,7 +12,7 @@ class DetectionOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final int classIndex = results['class'] as int;
+    final String label = results['label'] as String;
     final double confidence = results['confidence'] as double;
 
     return Positioned(
@@ -25,7 +25,7 @@ class DetectionOverlay extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
-          'Class $classIndex\nConfidence: ${(confidence * 100).toStringAsFixed(1)}%',
+          'Class $label\nConfidence: ${(confidence * 100).toStringAsFixed(1)}%',
           style: const TextStyle(
             color: Colors.white,
             fontSize: 16,
