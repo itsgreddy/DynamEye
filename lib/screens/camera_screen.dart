@@ -5,6 +5,7 @@ import '../controllers/camera_controller_provider.dart';
 import '../widgets/camera_view.dart';
 import '../widgets/camera_controls.dart';
 import '../services/web_socket_service.dart';
+import '../config.dart';
 
 class CameraScreen extends StatefulWidget {
   final List<CameraDescription> cameras;
@@ -24,8 +25,8 @@ class _CameraScreenState extends State<CameraScreen>
   bool isZoomEnabled = true;
   bool isStreaming = false;
 
-  final String serverUrl = 'ws://10.19.215.37:8080';
-  final String viewerUrl = 'http://10.19.215.37:8080';
+  final String serverUrl = Config.serverUrl;
+  final String viewerUrl = Config.viewerUrl;
 
   @override
   void initState() {
