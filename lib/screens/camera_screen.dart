@@ -8,6 +8,7 @@ import '../services/web_socket_service.dart';
 import '../config.dart';
 import '../controllers/tflite_helper.dart';
 import '../widgets/detection_overlay.dart';
+import '../widgets/threshold_control.dart';
 
 class CameraScreen extends StatefulWidget {
   final List<CameraDescription> cameras;
@@ -27,6 +28,7 @@ class _CameraScreenState extends State<CameraScreen>
   bool isZoomEnabled = true;
   bool isStreaming = false;
   bool isDetectionEnabled = false;
+  bool isThresholdVisible = false;
   int detectionCount = 0;
   DateTime? lastUpdateTime;
 
@@ -165,9 +167,15 @@ class _CameraScreenState extends State<CameraScreen>
           // Reset detection metrics
           detectionCount = 0;
           lastUpdateTime = DateTime.now();
+
+          // Show threshold control when detection is enabled
+          isThresholdVisible = true;
         } else {
           print('Disabling object detection');
           _cameraProvider.disableObjectDetection();
+
+          // Hide threshold control when detection is disabled
+          isThresholdVisible = false;
         }
       });
     } catch (e, stackTrace) {
@@ -180,8 +188,15 @@ class _CameraScreenState extends State<CameraScreen>
 
       setState(() {
         isDetectionEnabled = false;
+        isThresholdVisible = false;
       });
     }
+  }
+
+  void _toggleThresholdControl() {
+    setState(() {
+      isThresholdVisible = !isThresholdVisible;
+    });
   }
 
   void _showQrCodeDialog() {
@@ -253,6 +268,16 @@ class _CameraScreenState extends State<CameraScreen>
             tooltip:
                 isDetectionEnabled ? 'Disable Detection' : 'Enable Detection',
           ),
+          // Threshold settings
+          if (isDetectionEnabled)
+            IconButton(
+              icon: Icon(
+                Icons.tune,
+                color: isThresholdVisible ? Colors.amber : Colors.grey,
+              ),
+              onPressed: _toggleThresholdControl,
+              tooltip: 'Adjust Detection Threshold',
+            ),
           // Detection status indicator
           if (isDetectionEnabled)
             Container(
@@ -285,6 +310,19 @@ class _CameraScreenState extends State<CameraScreen>
                 updateStatus,
                 style: const TextStyle(color: Colors.white, fontSize: 10),
                 textAlign: TextAlign.center,
+              ),
+            ),
+          // Threshold control
+          if (isThresholdVisible)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: ThresholdControl(
+                onThresholdChanged: (value) {
+                  // Refresh detections if threshold changed
+                  if (isDetectionEnabled) {
+                    print('Threshold changed to: ${(value * 100).toInt()}%');
+                  }
+                },
               ),
             ),
           Expanded(

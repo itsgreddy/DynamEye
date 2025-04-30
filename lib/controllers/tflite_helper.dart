@@ -6,6 +6,17 @@ class TFLiteHelper {
   static bool _isModelLoaded = false;
   static List<String> _labels = [];
 
+  // Default confidence threshold
+  static double _confidenceThreshold = 0.5;
+
+  // Getter and setter for confidence threshold
+  static double get confidenceThreshold => _confidenceThreshold;
+  static set confidenceThreshold(double value) {
+    // Ensure threshold is between 0 and 1
+    _confidenceThreshold = value.clamp(0.0, 1.0);
+    print('Detection confidence threshold set to: $_confidenceThreshold');
+  }
+
   static Future<void> loadModel() async {
     try {
       // Load model from assets
@@ -136,8 +147,8 @@ class TFLiteHelper {
           continue;
         }
 
-        // Only process high confidence detections
-        if (score > 0.5) {
+        // Only process detections that meet or exceed the confidence threshold
+        if (score >= _confidenceThreshold) {
           // Safely extract and convert class index
           var classIndexValue = outputClasses[0][i];
           int classIndex;
@@ -188,6 +199,10 @@ class TFLiteHelper {
             'label': label,
             'rect': {'x': xmin, 'y': ymin, 'w': xmax - xmin, 'h': ymax - ymin},
           });
+        } else {
+          print(
+            'Detection $i filtered out: score $score < threshold $_confidenceThreshold',
+          );
         }
       }
 
