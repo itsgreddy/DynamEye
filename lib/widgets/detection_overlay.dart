@@ -12,27 +12,58 @@ class DetectionOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String label = results['label'] as String;
-    final double confidence = results['confidence'] as double;
+    if (results.isEmpty || !results.containsKey('detections')) {
+      return const SizedBox.shrink();
+    }
 
-    return Positioned(
-      left: 10,
-      top: 10,
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.7),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text(
-          'Class $label\nConfidence: ${(confidence * 100).toStringAsFixed(1)}%',
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
+    final List<Map<String, dynamic>> detections =
+        List<Map<String, dynamic>>.from(results['detections']);
+
+    return Stack(
+      children: [
+        // Draw bounding boxes for each detection
+        ...detections.map((detection) {
+          final confidence = detection['confidence'] as double;
+          final label = detection['label'] as String;
+          final rect = detection['rect'] as Map<String, dynamic>;
+
+          // Convert normalized coordinates to actual pixels
+          final x = (rect['x'] as double) * imageSize.width;
+          final y = (rect['y'] as double) * imageSize.height;
+          final w = (rect['w'] as double) * imageSize.width;
+          final h = (rect['h'] as double) * imageSize.height;
+
+          return Positioned(
+            left: x,
+            top: y,
+            child: Container(
+              width: w,
+              height: h,
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.red, width: 3.0),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    color: Colors.red,
+                    child: Text(
+                      '$label ${(confidence * 100).toStringAsFixed(0)}%',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+      ],
     );
   }
 }
