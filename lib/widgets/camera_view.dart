@@ -11,36 +11,45 @@ class CameraView extends StatelessWidget {
   final double bubbleDiameter;
 
   const CameraView({
-    Key? key,
+    super.key,
     required this.cameraProvider,
-    this.isZoomEnabled = true,
-    this.zoom = 2.0,
-    this.bubbleDiameter = 200.0,
-  }) : super(key: key);
+    required this.isZoomEnabled,
+    required this.zoom,
+    required this.bubbleDiameter,
+  });
 
   @override
   Widget build(BuildContext context) {
-    if (!cameraProvider.isInitialized) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    return ListenableBuilder(
+      listenable: cameraProvider,
+      builder: (context, child) {
+        if (!cameraProvider.isInitialized) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-    return Stack(
-      children: [
-        ZoomOverlay(
-          isZoomEnabled: isZoomEnabled,
-          zoom: zoom,
-          bubbleDiameter: bubbleDiameter,
-          child: CameraPreview(cameraProvider.controller!),
-        ),
-        if (cameraProvider.detectionResults != null)
-          DetectionOverlay(
-            results: cameraProvider.detectionResults!, // Now correctly named and typed
-            imageSize: Size(
-              cameraProvider.controller!.value.previewSize!.height,
-              cameraProvider.controller!.value.previewSize!.width,
-            ),
-          ),
-      ],
+        return Stack(
+          children: [
+            if (!isZoomEnabled) CameraPreview(cameraProvider.controller!),
+            if (isZoomEnabled)
+              ZoomOverlay(
+                isZoomEnabled: isZoomEnabled,
+                zoom: zoom,
+                bubbleDiameter: bubbleDiameter,
+                child: CameraPreview(cameraProvider.controller!),
+              ),
+            if (cameraProvider.detectionResults != null)
+              DetectionOverlay(
+                results:
+                    cameraProvider
+                        .detectionResults!, // Now correctly named and typed
+                imageSize: Size(
+                  cameraProvider.controller!.value.previewSize!.height,
+                  cameraProvider.controller!.value.previewSize!.width,
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }
