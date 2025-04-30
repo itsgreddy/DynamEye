@@ -32,7 +32,7 @@ class _CameraScreenState extends State<CameraScreen>
   int detectionCount = 0;
   DateTime? lastUpdateTime;
   double _baseZoom = 1.0; // for pinch gesture
-
+  Map<String, dynamic>? _detectionResults;
 
   final String serverUrl = Config.serverUrl;
   final String viewerUrl = Config.viewerUrl;
@@ -61,6 +61,7 @@ class _CameraScreenState extends State<CameraScreen>
     if (_cameraProvider.isInitialized && _cameraProvider.zoomLevel != zoom) {
       setState(() {
         zoom = _cameraProvider.zoomLevel;
+        _detectionResults = _cameraProvider.detectionResults;
       });
     }
 
@@ -330,56 +331,45 @@ class _CameraScreenState extends State<CameraScreen>
           Expanded(
             child: Stack(
               children: [
-                // Camera View
-                CameraView(
-                  cameraProvider: _cameraProvider,
-                  isZoomEnabled: isZoomEnabled,
-                  zoom: zoom,
-                  bubbleDiameter: bubbleDiameter,
+                // Original Camera View
+                GestureDetector(
+                  onScaleStart: (_) {
+                    _baseZoom = zoom;
+                  },
+                  onScaleUpdate: (details) {
+                    if (_cameraProvider.isInitialized) {
+                      final newZoom = (_baseZoom * details.scale).clamp(
+                        _cameraProvider.minZoom,
+                        _cameraProvider.maxZoom,
+                      );
+                      _cameraProvider.setZoomLevel(newZoom);
+                      setState(() => zoom = newZoom);
+                      if (isStreaming) {
+                        _stopStreaming();
+                        _startStreaming();
+                      }
+                    }
+                  },
+                  child: CameraView(
+                    cameraProvider: _cameraProvider,
+                    isZoomEnabled: isZoomEnabled,
+                    zoom: zoom,
+                    bubbleDiameter: bubbleDiameter,
+                  ),
                 ),
 
-                // Object Detection Overlay with AnimatedBuilder
-                if (isDetectionEnabled && _cameraProvider.isInitialized)
-                  AnimatedBuilder(
-                    animation: _cameraProvider,
-                    builder: (context, child) {
-                      final results = _cameraProvider.detectionResults;
-                      final previewSize =
-                          _cameraProvider.controller?.value.previewSize;
-
-                      if (results == null || previewSize == null) {
-                        return const SizedBox.shrink();
-                      }
-
-                      return DetectionOverlay(
-                        results: results,
-                        imageSize: Size(previewSize.height, previewSize.width),
-                      );
-                    },
+                // Object Detection Overlay, only shown when enabled
+                if (isDetectionEnabled &&
+                    _detectionResults != null &&
+                    _cameraProvider.isInitialized)
+                  DetectionOverlay(
+                    results: _detectionResults!,
+                    imageSize: Size(
+                      _cameraProvider.controller!.value.previewSize!.height,
+                      _cameraProvider.controller!.value.previewSize!.width,
+                    ),
                   ),
               ],
-            child: GestureDetector(
-              onScaleStart: (_) {
-                _baseZoom = zoom;
-              },
-              onScaleUpdate: (details) {
-                if (_cameraProvider.isInitialized) {
-                  final newZoom = (_baseZoom * details.scale)
-                      .clamp(_cameraProvider.minZoom, _cameraProvider.maxZoom);
-                  _cameraProvider.setZoomLevel(newZoom);
-                  setState(() => zoom = newZoom);
-                  if (isStreaming) {
-                    _stopStreaming();
-                    _startStreaming();
-                  }
-                }
-              },
-              child: CameraView(
-                cameraProvider: _cameraProvider,
-                isZoomEnabled: isZoomEnabled,
-                zoom: zoom,
-                bubbleDiameter: bubbleDiameter,
-              ),
             ),
           ),
           CameraControls(
