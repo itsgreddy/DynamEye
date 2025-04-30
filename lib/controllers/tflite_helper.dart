@@ -13,12 +13,28 @@ class TFLiteHelper {
         'assets/models/ssd_mobilenet.tflite',
       );
       _isModelLoaded = true;
+      print('TFLite model loaded successfully');
+
+      // Log input and output tensor details for debugging
+      if (_interpreter != null) {
+        final inputTensor = _interpreter!.getInputTensor(0);
+        final inputShape = inputTensor.shape;
+        final inputType = inputTensor.type;
+        print('Model input shape: $inputShape');
+        print('Model input type: $inputType');
+
+        final outputTensors = _interpreter!.getOutputTensors();
+        for (int i = 0; i < outputTensors.length; i++) {
+          print('Output tensor $i shape: ${outputTensors[i].shape}');
+          print('Output tensor $i type: ${outputTensors[i].type}');
+        }
+      }
 
       await loadLabels();
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('Error loading model: $e');
+      print('Stack trace: $stackTrace');
       _isModelLoaded = false;
-      rethrow;
     }
   }
 
@@ -32,32 +48,46 @@ class TFLiteHelper {
       // Split by newline and remove any empty strings
       _labels =
           labelsData.split('\n').where((label) => label.isNotEmpty).toList();
+      print('Loaded ${_labels.length} labels');
     } catch (e) {
       print('Error loading labels: $e');
-      // Initialize with an empty list so the app can still run
-      _labels = [];
+      // Initialize with some default labels for testing
+      _labels = [
+        'Background',
+        'Person',
+        'Car',
+        'Chair',
+        'Bottle',
+        'Laptop',
+        'Phone',
+        'Book',
+      ];
+      print('Using default labels instead');
     }
   }
 
   static Future<Map<String, dynamic>> runModelOnFrame(
-    List<List<List<List<double>>>> input,
+    List<List<List<List<int>>>> input,
   ) async {
     if (!_isModelLoaded || _interpreter == null) {
-      await loadModel();
+      try {
+        await loadModel();
+      } catch (e) {
+        print('Failed to load model: $e');
+        return {'detections': []};
+      }
     }
 
     try {
-      // SSD MobileNet typically has these outputs:
-      // 1. Locations/bounding boxes
-      // 2. Class scores
-      // 3. Number of detections
+      print(
+        'Running inference on uint8 input tensor of shape: ${input.length}x${input[0].length}x${input[0][0].length}x${input[0][0][0].length}',
+      );
 
-      // Define output tensors with appropriate shapes
-      // These shapes match the SSD MobileNet model output
-      final outputLocations = List.filled(1 * 10 * 4, 0.0).reshape([1, 10, 4]);
-      final outputClasses = List.filled(1 * 10, 0).reshape([1, 10]);
-      final outputScores = List.filled(1 * 10, 0.0).reshape([1, 10]);
-      final numDetections = List.filled(1, 0).reshape([1]);
+      // Create arrays to hold the outputs with explicit types
+      var outputLocations = List.filled(1 * 10 * 4, 0.0).reshape([1, 10, 4]);
+      var outputClasses = List.filled(1 * 10, 0).reshape([1, 10]);
+      var outputScores = List.filled(1 * 10, 0.0).reshape([1, 10]);
+      var numDetections = List.filled(1, 0).reshape([1]);
 
       // Define outputs map
       Map<int, Object> outputs = {
@@ -68,24 +98,89 @@ class TFLiteHelper {
       };
 
       // Run inference
+      print('Running model inference...');
       _interpreter!.runForMultipleInputs([input], outputs);
 
-      // Process results
-      List<Map<String, dynamic>> detections = [];
-      int numDetected = (numDetections[0] as int).toInt();
+      print('Inference completed, processing results');
 
+      // Process results - carefully handle type conversions
+      List<Map<String, dynamic>> detections = [];
+
+      // Safely extract the number of detections
+      var numDetectedValue = numDetections[0];
+      int numDetected;
+      if (numDetectedValue is int) {
+        numDetected = numDetectedValue;
+      } else if (numDetectedValue is double) {
+        numDetected = numDetectedValue.toInt();
+      } else {
+        print(
+          'Unexpected type for numDetections: ${numDetectedValue.runtimeType}',
+        );
+        numDetected = 0;
+      }
+
+      print('Number of detections: $numDetected');
+
+      // Safely process each detection
       for (int i = 0; i < numDetected; i++) {
-        if ((outputScores[0][i] as double) > 0.5) {
-          // Confidence threshold
-          final score = outputScores[0][i] as double;
-          final classIndex = (outputClasses[0][i] as int).toInt();
+        // Safely extract and convert score
+        var scoreValue = outputScores[0][i];
+        double score;
+        if (scoreValue is double) {
+          score = scoreValue;
+        } else if (scoreValue is int) {
+          score = scoreValue.toDouble();
+        } else {
+          print('Unexpected type for score: ${scoreValue.runtimeType}');
+          continue;
+        }
+
+        // Only process high confidence detections
+        if (score > 0.5) {
+          // Safely extract and convert class index
+          var classIndexValue = outputClasses[0][i];
+          int classIndex;
+          if (classIndexValue is int) {
+            classIndex = classIndexValue;
+          } else if (classIndexValue is double) {
+            classIndex = classIndexValue.toInt();
+          } else {
+            print(
+              'Unexpected type for classIndex: ${classIndexValue.runtimeType}',
+            );
+            continue;
+          }
+
           final label = getLabel(classIndex);
 
-          // Extract normalized bounding box (values between 0-1)
-          final ymin = (outputLocations[0][i][0] as double).clamp(0.0, 1.0);
-          final xmin = (outputLocations[0][i][1] as double).clamp(0.0, 1.0);
-          final ymax = (outputLocations[0][i][2] as double).clamp(0.0, 1.0);
-          final xmax = (outputLocations[0][i][3] as double).clamp(0.0, 1.0);
+          // Extract normalized bounding box coordinates with type safety
+          var yminValue = outputLocations[0][i][0];
+          var xminValue = outputLocations[0][i][1];
+          var ymaxValue = outputLocations[0][i][2];
+          var xmaxValue = outputLocations[0][i][3];
+
+          double ymin, xmin, ymax, xmax;
+
+          // Convert values to double if necessary
+          ymin =
+              (yminValue is double) ? yminValue : (yminValue as num).toDouble();
+          xmin =
+              (xminValue is double) ? xminValue : (xminValue as num).toDouble();
+          ymax =
+              (ymaxValue is double) ? ymaxValue : (ymaxValue as num).toDouble();
+          xmax =
+              (xmaxValue is double) ? xmaxValue : (xmaxValue as num).toDouble();
+
+          // Clamp values to valid range
+          ymin = ymin.clamp(0.0, 1.0);
+          xmin = xmin.clamp(0.0, 1.0);
+          ymax = ymax.clamp(0.0, 1.0);
+          xmax = xmax.clamp(0.0, 1.0);
+
+          print(
+            'Detection $i: $label (${score.toStringAsFixed(2)}) at [$xmin,$ymin,$xmax,$ymax]',
+          );
 
           detections.add({
             'confidence': score,
@@ -97,8 +192,22 @@ class TFLiteHelper {
       }
 
       return {'detections': detections};
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('Error running model: $e');
+      print('Stack trace: $stackTrace');
+
+      // If there's an error, try to analyze what went wrong
+      if (_interpreter != null) {
+        try {
+          final inputTensor = _interpreter!.getInputTensor(0);
+          print('Expected input shape: ${inputTensor.shape}');
+          print('Expected input type: ${inputTensor.type}');
+        } catch (e2) {
+          print('Error getting tensor info: $e2');
+        }
+      }
+
+      // Return empty results on error
       return {'detections': []};
     }
   }

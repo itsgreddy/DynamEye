@@ -27,7 +27,8 @@ class _CameraScreenState extends State<CameraScreen>
   bool isZoomEnabled = true;
   bool isStreaming = false;
   bool isDetectionEnabled = false;
-  Map<String, dynamic>? _detectionResults;
+  int detectionCount = 0;
+  DateTime? lastUpdateTime;
 
   final String serverUrl = Config.serverUrl;
   final String viewerUrl = Config.viewerUrl;
@@ -51,11 +52,23 @@ class _CameraScreenState extends State<CameraScreen>
 
   void _onCameraProviderChanged() {
     if (!mounted) return;
-    // once controller is initialized, sync our UI zoom to its zoomLevel
-    if (_cameraProvider.isInitialized) {
+
+    // Update zoom level
+    if (_cameraProvider.isInitialized && _cameraProvider.zoomLevel != zoom) {
       setState(() {
         zoom = _cameraProvider.zoomLevel;
-        _detectionResults = _cameraProvider.detectionResults;
+      });
+    }
+
+    // Track detection updates for performance monitoring
+    if (_cameraProvider.detectionResults != null) {
+      final now = DateTime.now();
+      final detections =
+          _cameraProvider.detectionResults!['detections'] as List<dynamic>;
+
+      setState(() {
+        detectionCount = detections.length;
+        lastUpdateTime = now;
       });
     }
   }
@@ -64,11 +77,17 @@ class _CameraScreenState extends State<CameraScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Handle app lifecycle changes
     if (state == AppLifecycleState.inactive) {
-      // Stop streaming and disconnect when app is inactive
       _stopStreaming();
       _webSocketService.disconnect();
+
+      // Disable detection when app is inactive
+      if (isDetectionEnabled) {
+        setState(() {
+          isDetectionEnabled = false;
+          _cameraProvider.disableObjectDetection();
+        });
+      }
     } else if (state == AppLifecycleState.resumed) {
-      // Reconnect when app is resumed
       if (_webSocketService.isConnected.value) {
         _webSocketService.connect();
       }
@@ -79,10 +98,11 @@ class _CameraScreenState extends State<CameraScreen>
   void dispose() {
     _cameraProvider.removeListener(_onCameraProviderChanged);
     WidgetsBinding.instance.removeObserver(this);
-    // Stop streaming without calling setState
+
     if (_cameraProvider.isInitialized) {
       _webSocketService.stopStreaming(_cameraProvider.controller!);
     }
+
     _webSocketService.dispose();
     _cameraProvider.dispose();
     TFLiteHelper.dispose();
@@ -130,16 +150,38 @@ class _CameraScreenState extends State<CameraScreen>
   }
 
   void _toggleDetection() {
-    setState(() {
-      isDetectionEnabled = !isDetectionEnabled;
+    print(
+      'Toggle detection button pressed. Current state: $isDetectionEnabled',
+    );
 
-      // When enabling detection, make sure the CameraProvider knows
-      if (isDetectionEnabled) {
-        _cameraProvider.enableObjectDetection();
-      } else {
-        _cameraProvider.disableObjectDetection();
-      }
-    });
+    try {
+      setState(() {
+        isDetectionEnabled = !isDetectionEnabled;
+
+        if (isDetectionEnabled) {
+          print('Enabling object detection');
+          _cameraProvider.enableObjectDetection();
+
+          // Reset detection metrics
+          detectionCount = 0;
+          lastUpdateTime = DateTime.now();
+        } else {
+          print('Disabling object detection');
+          _cameraProvider.disableObjectDetection();
+        }
+      });
+    } catch (e, stackTrace) {
+      print('Error toggling detection: $e');
+      print('Stack trace: $stackTrace');
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error toggling detection: $e')));
+
+      setState(() {
+        isDetectionEnabled = false;
+      });
+    }
   }
 
   void _showQrCodeDialog() {
@@ -188,6 +230,14 @@ class _CameraScreenState extends State<CameraScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Calculate time since last update for feedback
+    String updateStatus = 'No updates yet';
+    if (lastUpdateTime != null) {
+      final now = DateTime.now();
+      final diff = now.difference(lastUpdateTime!).inMilliseconds;
+      updateStatus = 'Last update: ${diff}ms ago';
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('DynamEye'),
@@ -203,49 +253,44 @@ class _CameraScreenState extends State<CameraScreen>
             tooltip:
                 isDetectionEnabled ? 'Disable Detection' : 'Enable Detection',
           ),
-          // WebSocket buttons commented out for now
-          /*          ValueListenableBuilder<bool>(
-            valueListenable: _webSocketService.isConnected,
-            builder: (context, isConnected, child) {
-              return ValueListenableBuilder<String>(
-                valueListenable: _webSocketService.connectionStatus,
-                builder: (context, status, child) {
-                  return Row(
-                    children: [
-                      if (isConnected)
-                        IconButton(
-                          icon: const Icon(Icons.qr_code),
-                          tooltip: 'Show QR Code',
-                          onPressed: _showQrCodeDialog,
-                        ),
-                      IconButton(
-                        icon: Icon(
-                          isConnected ? Icons.link : Icons.link_off,
-                          color: isConnected ? Colors.green : Colors.red,
-                        ),
-                        onPressed: isConnected
-                            ? _webSocketService.disconnect
-                            : _webSocketService.connect,
-                        tooltip: isConnected
-                            ? 'Disconnect'
-                            : 'Connect to server',
-                      ),
-                    ],
-                  );
-                },
-              );
-            },
-          ),
-*/
+          // Detection status indicator
+          if (isDetectionEnabled)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              margin: const EdgeInsets.only(right: 8),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.7),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                'Objects: $detectionCount',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
         ],
       ),
-
       body: Column(
         children: [
+          // Optional debugging info bar
+          if (isDetectionEnabled)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              color: Colors.black,
+              width: double.infinity,
+              child: Text(
+                updateStatus,
+                style: const TextStyle(color: Colors.white, fontSize: 10),
+                textAlign: TextAlign.center,
+              ),
+            ),
           Expanded(
             child: Stack(
               children: [
-                // Original Camera View
+                // Camera View
                 CameraView(
                   cameraProvider: _cameraProvider,
                   isZoomEnabled: isZoomEnabled,
@@ -253,16 +298,24 @@ class _CameraScreenState extends State<CameraScreen>
                   bubbleDiameter: bubbleDiameter,
                 ),
 
-                // Object Detection Overlay, only shown when enabled
-                if (isDetectionEnabled &&
-                    _detectionResults != null &&
-                    _cameraProvider.isInitialized)
-                  DetectionOverlay(
-                    results: _detectionResults!,
-                    imageSize: Size(
-                      _cameraProvider.controller!.value.previewSize!.height,
-                      _cameraProvider.controller!.value.previewSize!.width,
-                    ),
+                // Object Detection Overlay with AnimatedBuilder
+                if (isDetectionEnabled && _cameraProvider.isInitialized)
+                  AnimatedBuilder(
+                    animation: _cameraProvider,
+                    builder: (context, child) {
+                      final results = _cameraProvider.detectionResults;
+                      final previewSize =
+                          _cameraProvider.controller?.value.previewSize;
+
+                      if (results == null || previewSize == null) {
+                        return const SizedBox.shrink();
+                      }
+
+                      return DetectionOverlay(
+                        results: results,
+                        imageSize: Size(previewSize.height, previewSize.width),
+                      );
+                    },
                   ),
               ],
             ),
@@ -276,7 +329,6 @@ class _CameraScreenState extends State<CameraScreen>
             onZoomChanged: (value) async {
               await _cameraProvider.setZoomLevel(value);
               setState(() => zoom = value);
-              // Update streaming config if active
               if (isStreaming) {
                 _stopStreaming();
                 _startStreaming();
@@ -284,7 +336,6 @@ class _CameraScreenState extends State<CameraScreen>
             },
             onBubbleSizeChanged: (value) {
               setState(() => bubbleDiameter = value);
-              // Update streaming config if active
               if (isStreaming) {
                 _stopStreaming();
                 _startStreaming();
@@ -292,7 +343,6 @@ class _CameraScreenState extends State<CameraScreen>
             },
             onZoomEnabledChanged: (value) {
               setState(() => isZoomEnabled = value);
-              // Update streaming config if active
               if (isStreaming) {
                 _stopStreaming();
                 _startStreaming();
@@ -301,21 +351,6 @@ class _CameraScreenState extends State<CameraScreen>
           ),
         ],
       ),
-      // Streaming / share button commented out for now
-      /*      floatingActionButton: ValueListenableBuilder<bool>(
-        valueListenable: _webSocketService.isConnected,
-        builder: (context, isConnected, child) {
-          return FloatingActionButton(
-            onPressed: isConnected ? _toggleStreaming : null,
-            backgroundColor: isConnected
-                ? (isStreaming ? Colors.red : Colors.green)
-                : Colors.grey,
-            tooltip: isStreaming ? 'Stop Streaming' : 'Start Streaming',
-            child: Icon(isStreaming ? Icons.stop : Icons.cast),
-          );
-        },
-      ),
-*/
     );
   }
 }
