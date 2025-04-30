@@ -21,11 +21,8 @@ class CameraControllerProvider with ChangeNotifier {
   });
 
   Future<void> initialize() async {
-    _controller = CameraController(
-      cameraDescription,
-      resolutionPreset,
-      enableAudio: false,
-    );
+    if (_isInitializing) return;
+    _isInitializing = true;
 
     await _controller!.initialize();
     await _controller!.startImageStream(_processImage);
