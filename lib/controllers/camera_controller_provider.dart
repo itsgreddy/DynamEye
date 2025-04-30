@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
@@ -12,11 +13,18 @@ class CameraControllerProvider with ChangeNotifier {
   bool _isInitializing = false;
   Map<String, dynamic>? _detectionResults;
 
+  double _minZoom = 1.0;
+  double _maxZoom = 1.0;
+  double _currentZoom = 1.0;
+
   CameraController? get controller => _controller;
   bool get isInitialized => _isInitialized;
   bool get isInitializing => _isInitializing;
   Map<String, dynamic>? get detectionResults => _detectionResults;
   bool get isProcessing => _isProcessing;
+  double get minZoom => _minZoom;
+  double get maxZoom => _maxZoom;
+  double get zoomLevel => _currentZoom;
 
   CameraControllerProvider({
     required this.cameraDescription,
@@ -37,6 +45,16 @@ class CameraControllerProvider with ChangeNotifier {
 
       await _controller!.initialize();
       _isInitialized = true;
+
+      // query device zoom range and clamp max to 20×
+      final deviceMin = await _controller!.getMinZoomLevel();
+      final deviceMax = await _controller!.getMaxZoomLevel();
+      _minZoom = deviceMin;
+      _maxZoom = math.min(deviceMax, 20.0);
+
+      _currentZoom = _minZoom;
+      await _controller!.setZoomLevel(_currentZoom);
+
       notifyListeners();
 
       await _controller!.startImageStream(_processImage);
@@ -46,6 +64,13 @@ class CameraControllerProvider with ChangeNotifier {
     } finally {
       _isInitializing = false;
     }
+  }
+
+  Future<void> setZoomLevel(double zoom) async {
+    if (_controller == null) return;
+    _currentZoom = zoom.clamp(_minZoom, _maxZoom);
+    await _controller!.setZoomLevel(_currentZoom);
+    notifyListeners();
   }
 
   Future<void> _processImage(CameraImage image) async {

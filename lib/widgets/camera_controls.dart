@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 class CameraControls extends StatelessWidget {
   final double zoom;
+  final double minZoom;
+  final double maxZoom;
   final double bubbleDiameter;
   final bool isZoomEnabled;
   final ValueChanged<double> onZoomChanged;
@@ -11,6 +13,8 @@ class CameraControls extends StatelessWidget {
   const CameraControls({
     super.key,
     required this.zoom,
+    required this.minZoom,
+    required this.maxZoom,
     required this.bubbleDiameter,
     required this.isZoomEnabled,
     required this.onZoomChanged,
@@ -30,9 +34,9 @@ class CameraControls extends StatelessWidget {
               Expanded(
                 child: Slider(
                   value: zoom,
-                  min: 1.0,
-                  max: 4.0,
-                  divisions: 30,
+                  min: minZoom,
+                  max: maxZoom,
+                  divisions: ((maxZoom - minZoom) * 10).round(),
                   label: '${zoom.toStringAsFixed(2)}x',
                   onChanged: onZoomChanged,
                 ),

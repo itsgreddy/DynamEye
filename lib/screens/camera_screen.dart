@@ -212,9 +212,12 @@ class _CameraScreenState extends State<CameraScreen>
           ),
           CameraControls(
             zoom: zoom,
+            minZoom: _cameraProvider.minZoom,
+            maxZoom: _cameraProvider.maxZoom,
             bubbleDiameter: bubbleDiameter,
             isZoomEnabled: isZoomEnabled,
-            onZoomChanged: (value) {
+            onZoomChanged: (value) async {
+              await _cameraProvider.setZoomLevel(value);
               setState(() => zoom = value);
               // Update streaming config if active
               if (isStreaming) {

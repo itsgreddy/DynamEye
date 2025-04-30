@@ -20,6 +20,13 @@ class ZoomOverlay extends StatelessWidget {
       return child;
     }
 
+    // map zoom 1→1.0 down to zoom 20→0.1 linearly
+    final double ratio = zoom <= 1.0
+        ? 1.0
+        : zoom >= 20.0
+            ? 0.1
+            : 1.0 - ((zoom - 1.0) * 0.9 / 19.0);
+
     return Center(
       child: Stack(
         alignment: Alignment.center,
@@ -37,8 +44,8 @@ class ZoomOverlay extends StatelessWidget {
             ),
             child: ClipOval(
               child: Transform.scale(
-                scaleX: zoom,
-                scaleY: zoom * 16 / 9,
+                scaleX: zoom * ratio,
+                scaleY: zoom * ratio * 16 / 9,
                 child: child,
               ),
             ),
