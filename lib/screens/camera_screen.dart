@@ -171,8 +171,8 @@ class _CameraScreenState extends State<CameraScreen>
         title: const Text('DynamEye'),
         centerTitle: true,
         actions: [
-          // Connection status indicator and action
-          ValueListenableBuilder<bool>(
+          // WebSocket buttons commented out for now
+/*          ValueListenableBuilder<bool>(
             valueListenable: _webSocketService.isConnected,
             builder: (context, isConnected, child) {
               return ValueListenableBuilder<String>(
@@ -180,25 +180,23 @@ class _CameraScreenState extends State<CameraScreen>
                 builder: (context, status, child) {
                   return Row(
                     children: [
-                      // Only show QR code button when connected
                       if (isConnected)
                         IconButton(
                           icon: const Icon(Icons.qr_code),
                           tooltip: 'Show QR Code',
                           onPressed: _showQrCodeDialog,
                         ),
-                      // Connection button
                       IconButton(
                         icon: Icon(
                           isConnected ? Icons.link : Icons.link_off,
                           color: isConnected ? Colors.green : Colors.red,
                         ),
-                        onPressed:
-                            isConnected
-                                ? _webSocketService.disconnect
-                                : _webSocketService.connect,
-                        tooltip:
-                            isConnected ? 'Disconnect' : 'Connect to server',
+                        onPressed: isConnected
+                            ? _webSocketService.disconnect
+                            : _webSocketService.connect,
+                        tooltip: isConnected
+                            ? 'Disconnect'
+                            : 'Connect to server',
                       ),
                     ],
                   );
@@ -206,7 +204,7 @@ class _CameraScreenState extends State<CameraScreen>
               );
             },
           ),
-        ],
+*/        ],
       ),
 
       body: Column(
@@ -253,20 +251,20 @@ class _CameraScreenState extends State<CameraScreen>
           ),
         ],
       ),
-      floatingActionButton: ValueListenableBuilder<bool>(
+      // Streaming / share button commented out for now
+/*      floatingActionButton: ValueListenableBuilder<bool>(
         valueListenable: _webSocketService.isConnected,
         builder: (context, isConnected, child) {
           return FloatingActionButton(
             onPressed: isConnected ? _toggleStreaming : null,
-            backgroundColor:
-                isConnected
-                    ? (isStreaming ? Colors.red : Colors.green)
-                    : Colors.grey,
+            backgroundColor: isConnected
+                ? (isStreaming ? Colors.red : Colors.green)
+                : Colors.grey,
             tooltip: isStreaming ? 'Stop Streaming' : 'Start Streaming',
             child: Icon(isStreaming ? Icons.stop : Icons.cast),
           );
         },
       ),
-    );
+*/    );
   }
 }
