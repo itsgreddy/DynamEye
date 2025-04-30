@@ -22,7 +22,12 @@ class CameraControllerProvider with ChangeNotifier {
   });
 
   Future<void> initialize() async {
+<<<<<<< HEAD
     if (_controller != null) return;
+=======
+    if (_isInitializing) return;
+    _isInitializing = true;
+>>>>>>> main
 
     try {
       _controller = CameraController(
