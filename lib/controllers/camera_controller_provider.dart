@@ -9,10 +9,12 @@ class CameraControllerProvider with ChangeNotifier {
   CameraController? _controller;
   bool _isProcessing = false;
   bool _isInitialized = false;
+  bool _isInitializing = false;
   Map<String, dynamic>? _detectionResults;
 
   CameraController? get controller => _controller;
   bool get isInitialized => _isInitialized;
+  bool get isInitializing => _isInitializing;
   Map<String, dynamic>? get detectionResults => _detectionResults;
   bool get isProcessing => _isProcessing;
 
@@ -41,6 +43,8 @@ class CameraControllerProvider with ChangeNotifier {
     } catch (e) {
       _isInitialized = false;
       notifyListeners();
+    } finally {
+      _isInitializing = false;
     }
   }
 
@@ -60,7 +64,7 @@ class CameraControllerProvider with ChangeNotifier {
     }
   }
 
-  Future<List<List<List<List<int>>>>> _preprocessCameraImage(
+  Future<List<List<List<List<double>>>>> _preprocessCameraImage(
     CameraImage image,
   ) async {
     final img.Image rgbImage = _convertYUV420toImage(image);
@@ -70,20 +74,20 @@ class CameraControllerProvider with ChangeNotifier {
       height: 224,
     );
 
-    List<List<List<List<int>>>> input = List.generate(
+    List<List<List<List<double>>>> input = List.generate(
       1,
       (_) => List.generate(
         224,
-        (_) => List.generate(224, (_) => List.filled(3, 0)),
+        (_) => List.generate(224, (_) => List.filled(3, 0.0)),
       ),
     );
 
     for (int y = 0; y < 224; y++) {
       for (int x = 0; x < 224; x++) {
         final pixel = resizedImage.getPixel(x, y);
-        input[0][y][x][0] = pixel.r.toInt(); // Red
-        input[0][y][x][1] = pixel.g.toInt(); // Green
-        input[0][y][x][2] = pixel.b.toInt(); // Blue
+        input[0][y][x][0] = pixel.r.toDouble(); // Red
+        input[0][y][x][1] = pixel.g.toDouble(); // Green
+        input[0][y][x][2] = pixel.b.toDouble(); // Blue
       }
     }
     return input;

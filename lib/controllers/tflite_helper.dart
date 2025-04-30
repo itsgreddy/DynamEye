@@ -2,7 +2,7 @@ import 'package:tflite_flutter/tflite_flutter.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
 class TFLiteHelper {
-  static late Interpreter _interpreter;
+  static Interpreter? _interpreter;
   static bool _isModelLoaded = false;
   static List<String> _labels = [];
 
@@ -40,14 +40,14 @@ class TFLiteHelper {
   }
 
   static Future<Map<String, dynamic>> runModelOnFrame(
-    List<List<List<List<int>>>> input,
+    List<List<List<List<double>>>> input,
   ) async {
-    if (!_isModelLoaded) {
-      throw Exception('Model not loaded. Call loadModel() first.');
+    if (_interpreter == null) {
+      throw StateError('Interpreter is not initialized. Call loadModel() first.');
     }
 
     try {
-      final outputShape = _interpreter.getOutputTensor(0).shape;
+      final outputShape = _interpreter!.getOutputTensor(0).shape;
       var outputScores = List.filled(
         outputShape.reduce((a, b) => a * b),
         0,
@@ -55,7 +55,7 @@ class TFLiteHelper {
 
       Map<int, Object> outputs = {0: outputScores};
 
-      _interpreter.runForMultipleInputs([input], outputs);
+      _interpreter!.runForMultipleInputs([input], outputs);
 
       var scores = outputScores[0] as List<int>;
       var maxScore = 0;
@@ -95,9 +95,8 @@ class TFLiteHelper {
   static List<String> get labels => _labels;
 
   static void dispose() {
-    if (_isModelLoaded) {
-      _interpreter.close();
-      _isModelLoaded = false;
-    }
+    _interpreter?.close();
+    _interpreter = null;
+    _isModelLoaded = false;
   }
 }
