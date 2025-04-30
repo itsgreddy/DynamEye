@@ -6,6 +6,8 @@ import '../widgets/camera_view.dart';
 import '../widgets/camera_controls.dart';
 import '../services/web_socket_service.dart';
 import '../config.dart';
+import '../controllers/tflite_helper.dart';
+import '../widgets/detection_overlay.dart';
 
 class CameraScreen extends StatefulWidget {
   final List<CameraDescription> cameras;
@@ -24,6 +26,8 @@ class _CameraScreenState extends State<CameraScreen>
   double bubbleDiameter = 200.0;
   bool isZoomEnabled = true;
   bool isStreaming = false;
+  bool isDetectionEnabled = false;
+  Map<String, dynamic>? _detectionResults;
 
   final String serverUrl = Config.serverUrl;
   final String viewerUrl = Config.viewerUrl;
@@ -32,6 +36,9 @@ class _CameraScreenState extends State<CameraScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+
+    // Initialize TFLite Helper
+    TFLiteHelper.loadModel();
 
     _cameraProvider = CameraControllerProvider(
       cameraDescription: widget.cameras[0],
@@ -48,6 +55,7 @@ class _CameraScreenState extends State<CameraScreen>
     if (_cameraProvider.isInitialized) {
       setState(() {
         zoom = _cameraProvider.zoomLevel;
+        _detectionResults = _cameraProvider.detectionResults;
       });
     }
   }
@@ -77,6 +85,7 @@ class _CameraScreenState extends State<CameraScreen>
     }
     _webSocketService.dispose();
     _cameraProvider.dispose();
+    TFLiteHelper.dispose();
     super.dispose();
   }
 
@@ -118,6 +127,19 @@ class _CameraScreenState extends State<CameraScreen>
         isStreaming = false;
       });
     }
+  }
+
+  void _toggleDetection() {
+    setState(() {
+      isDetectionEnabled = !isDetectionEnabled;
+
+      // When enabling detection, make sure the CameraProvider knows
+      if (isDetectionEnabled) {
+        _cameraProvider.enableObjectDetection();
+      } else {
+        _cameraProvider.disableObjectDetection();
+      }
+    });
   }
 
   void _showQrCodeDialog() {
@@ -171,6 +193,16 @@ class _CameraScreenState extends State<CameraScreen>
         title: const Text('DynamEye'),
         centerTitle: true,
         actions: [
+          // Object Detection toggle
+          IconButton(
+            icon: Icon(
+              isDetectionEnabled ? Icons.visibility : Icons.visibility_off,
+              color: isDetectionEnabled ? Colors.green : Colors.grey,
+            ),
+            onPressed: _toggleDetection,
+            tooltip:
+                isDetectionEnabled ? 'Disable Detection' : 'Enable Detection',
+          ),
           // WebSocket buttons commented out for now
           /*          ValueListenableBuilder<bool>(
             valueListenable: _webSocketService.isConnected,
@@ -211,11 +243,28 @@ class _CameraScreenState extends State<CameraScreen>
       body: Column(
         children: [
           Expanded(
-            child: CameraView(
-              cameraProvider: _cameraProvider,
-              isZoomEnabled: isZoomEnabled,
-              zoom: zoom,
-              bubbleDiameter: bubbleDiameter,
+            child: Stack(
+              children: [
+                // Original Camera View
+                CameraView(
+                  cameraProvider: _cameraProvider,
+                  isZoomEnabled: isZoomEnabled,
+                  zoom: zoom,
+                  bubbleDiameter: bubbleDiameter,
+                ),
+
+                // Object Detection Overlay, only shown when enabled
+                if (isDetectionEnabled &&
+                    _detectionResults != null &&
+                    _cameraProvider.isInitialized)
+                  DetectionOverlay(
+                    results: _detectionResults!,
+                    imageSize: Size(
+                      _cameraProvider.controller!.value.previewSize!.height,
+                      _cameraProvider.controller!.value.previewSize!.width,
+                    ),
+                  ),
+              ],
             ),
           ),
           CameraControls(
