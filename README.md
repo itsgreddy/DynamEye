@@ -24,7 +24,34 @@ It is intended for future integration with AR glasses to aid individuals with vi
    flutter pub get
    ```
 
-2. **Set up the streaming server:**
+2. **Verify Assets**:
+   Ensure the following files exist in the `assets` directory:
+   - `assets/models/ssd_mobilenet_v2.tflite`
+   - `assets/labels.txt`
+
+   Update the `pubspec.yaml` file to include these assets:
+   ```yaml
+   flutter:
+     assets:
+       - assets/models/ssd_mobilenet_v2.tflite
+       - assets/labels.txt
+   ```
+
+3. **Fix TensorFlow Lite Model Path**:
+   Corrected the file path in `TFLiteHelper`:
+   ```dart
+   _interpreter = await Interpreter.fromAsset('assets/models/ssd_mobilenet_v2.tflite');
+   ```
+
+4. **Run CocoaPods**:
+   Navigate to the `ios` directory and install pods:
+   ```bash
+   cd ios
+   pod install
+   cd ..
+   ```
+
+5. **Set up the streaming server:**
    ```sh
    # Navigate to the server directory
    cd server
@@ -43,15 +70,40 @@ It is intended for future integration with AR glasses to aid individuals with vi
    PORT=3000 npm start
    ```
 
-3. **Run the Flutter app:**
+6. **Run the Flutter app:**
    ```sh
    # For local testing (localhost)
    flutter run --dart-define=SERVER_URL=ws://localhost:8080 --dart-define=VIEWER_URL=http://localhost:8080
 
    # For testing on a local network (replace with your computer's IP)
    flutter run --dart-define=SERVER_URL=ws://192.168.1.xxx:8080 --dart-define=VIEWER_URL=http://192.168.1.xxx:8080
+
+7. **Clean and Rebuild**:
+   Clean the project and rebuild it:
+   ```bash
+   flutter clean
+   flutter run
    ```
-   > The app will request camera permission on first launch.
+
+### Troubleshooting
+
+- **Asset Not Found**:
+  Ensure the file paths in `pubspec.yaml` and the code match the actual file locations.
+
+- **CocoaPods Issues**:
+  Update CocoaPods and the specs repository:
+  ```bash
+  sudo gem install cocoapods
+  pod repo update
+  ```
+
+### Features
+- Camera integration for real-time object detection.
+- TensorFlow Lite model inference.
+
+### Future Improvements
+- Add more models for different use cases.
+- Improve UI/UX for better user experience.
 
 ## Server Scripts
 The server package includes the following npm scripts:
@@ -60,21 +112,14 @@ The server package includes the following npm scripts:
 - `npm test` - (Placeholder for future test implementation)
 
 ## File Structure
-- `lib/main.dart` — Main app entry point
-- `lib/screens/camera_screen.dart` — Camera screen and streaming logic
-- `lib/widgets/camera_view.dart` — Camera preview widget
-- `lib/widgets/camera_controls.dart` — Camera control widgets
-- `lib/services/web_socket_service.dart` — WebSocket streaming service
-- `lib/config.dart` — Environment configuration
-- `server/` — WebSocket streaming server
-  - `src/server.js` — Main server implementation
-  - `public/` — Static files for the viewer
-  - `package.json` — Server dependencies and scripts
-
-## Configuration
-The app uses environment variables for server configuration:
-- `SERVER_URL`: WebSocket server URL (default: ws://localhost:8080)
-- `VIEWER_URL`: HTTP viewer URL (default: http://localhost:8080)
+- `lib/main.dart` — Main app logic, camera handling, and UI
+- `lib/controllers/tflite_helper.dart` — TensorFlow Lite model loading and inference logic
+- `lib/controllers/camera_controller_provider.dart` — Camera controller logic
+- `lib/screens/camera_screen.dart` — UI for the live camera feed
+- `assets/models/ssd_mobilenet_v2.tflite` — TensorFlow Lite model file
+- `assets/labels.txt` — Labels for object detection
+- `ios/` — iOS-specific configurations and dependencies
+- `android/` — Android-specific configurations and dependencies
 
 ## Notes
 - This is a proof-of-concept, not production code.
