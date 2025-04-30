@@ -20,7 +20,7 @@ class _CameraScreenState extends State<CameraScreen>
     with WidgetsBindingObserver {
   late CameraControllerProvider _cameraProvider;
   late WebSocketService _webSocketService;
-  double zoom = 2.0;
+  double zoom = 1.0;
   double bubbleDiameter = 200.0;
   bool isZoomEnabled = true;
   bool isStreaming = false;
@@ -43,8 +43,12 @@ class _CameraScreenState extends State<CameraScreen>
   }
 
   void _onCameraProviderChanged() {
-    if (mounted) {
-      setState(() {});
+    if (!mounted) return;
+    // once controller is initialized, sync our UI zoom to its zoomLevel
+    if (_cameraProvider.isInitialized) {
+      setState(() {
+        zoom = _cameraProvider.zoomLevel;
+      });
     }
   }
 
@@ -67,7 +71,10 @@ class _CameraScreenState extends State<CameraScreen>
   void dispose() {
     _cameraProvider.removeListener(_onCameraProviderChanged);
     WidgetsBinding.instance.removeObserver(this);
-    _stopStreaming();
+    // Stop streaming without calling setState
+    if (_cameraProvider.isInitialized) {
+      _webSocketService.stopStreaming(_cameraProvider.controller!);
+    }
     _webSocketService.dispose();
     _cameraProvider.dispose();
     super.dispose();
@@ -106,9 +113,11 @@ class _CameraScreenState extends State<CameraScreen>
     if (_cameraProvider.isInitialized) {
       _webSocketService.stopStreaming(_cameraProvider.controller!);
     }
-    setState(() {
-      isStreaming = false;
-    });
+    if (mounted) {
+      setState(() {
+        isStreaming = false;
+      });
+    }
   }
 
   void _showQrCodeDialog() {

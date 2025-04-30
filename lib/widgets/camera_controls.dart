@@ -24,6 +24,7 @@ class CameraControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool canZoom = maxZoom > minZoom;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       child: Column(
@@ -32,14 +33,21 @@ class CameraControls extends StatelessWidget {
             children: [
               const Text('Zoom'),
               Expanded(
-                child: Slider(
-                  value: zoom,
-                  min: minZoom,
-                  max: maxZoom,
-                  divisions: ((maxZoom - minZoom) * 10).round(),
-                  label: '${zoom.toStringAsFixed(2)}x',
-                  onChanged: onZoomChanged,
-                ),
+                child: canZoom
+                    ? Slider(
+                        value: zoom.clamp(minZoom, maxZoom),
+                        min: minZoom,
+                        max: maxZoom,
+                        divisions: ((maxZoom - minZoom) * 10).round(),
+                        label: '${zoom.toStringAsFixed(2)}x',
+                        onChanged: onZoomChanged,
+                      )
+                    : Slider(
+                        value: minZoom,
+                        min: minZoom,
+                        max: maxZoom,
+                        onChanged: null,
+                      ),
               ),
             ],
           ),
