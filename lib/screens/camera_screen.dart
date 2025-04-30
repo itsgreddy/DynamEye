@@ -61,7 +61,18 @@ class _CameraScreenState extends State<CameraScreen>
     if (_cameraProvider.isInitialized && _cameraProvider.zoomLevel != zoom) {
       setState(() {
         zoom = _cameraProvider.zoomLevel;
-        _detectionResults = _cameraProvider.detectionResults;
+      });
+    }
+
+    // Track detection updates for performance monitoring
+    if (_cameraProvider.detectionResults != null) {
+      final now = DateTime.now();
+      final detections =
+          _cameraProvider.detectionResults!['detections'] as List<dynamic>;
+
+      setState(() {
+        detectionCount = detections.length;
+        lastUpdateTime = now;
       });
     }
 
@@ -358,16 +369,24 @@ class _CameraScreenState extends State<CameraScreen>
                   ),
                 ),
 
-                // Object Detection Overlay, only shown when enabled
-                if (isDetectionEnabled &&
-                    _detectionResults != null &&
-                    _cameraProvider.isInitialized)
-                  DetectionOverlay(
-                    results: _detectionResults!,
-                    imageSize: Size(
-                      _cameraProvider.controller!.value.previewSize!.height,
-                      _cameraProvider.controller!.value.previewSize!.width,
-                    ),
+                // Object Detection Overlay with AnimatedBuilder
+                if (isDetectionEnabled && _cameraProvider.isInitialized)
+                  AnimatedBuilder(
+                    animation: _cameraProvider,
+                    builder: (context, child) {
+                      final results = _cameraProvider.detectionResults;
+                      final previewSize =
+                          _cameraProvider.controller?.value.previewSize;
+
+                      if (results == null || previewSize == null) {
+                        return const SizedBox.shrink();
+                      }
+
+                      return DetectionOverlay(
+                        results: results,
+                        imageSize: Size(previewSize.height, previewSize.width),
+                      );
+                    },
                   ),
               ],
             ),
