@@ -24,6 +24,7 @@ class _CameraScreenState extends State<CameraScreen>
   double bubbleDiameter = 200.0;
   bool isZoomEnabled = true;
   bool isStreaming = false;
+  double _baseZoom = 1.0; // for pinch gesture
 
   final String serverUrl = Config.serverUrl;
   final String viewerUrl = Config.viewerUrl;
@@ -210,11 +211,28 @@ class _CameraScreenState extends State<CameraScreen>
       body: Column(
         children: [
           Expanded(
-            child: CameraView(
-              cameraProvider: _cameraProvider,
-              isZoomEnabled: isZoomEnabled,
-              zoom: zoom,
-              bubbleDiameter: bubbleDiameter,
+            child: GestureDetector(
+              onScaleStart: (_) {
+                _baseZoom = zoom;
+              },
+              onScaleUpdate: (details) {
+                if (_cameraProvider.isInitialized) {
+                  final newZoom = (_baseZoom * details.scale)
+                      .clamp(_cameraProvider.minZoom, _cameraProvider.maxZoom);
+                  _cameraProvider.setZoomLevel(newZoom);
+                  setState(() => zoom = newZoom);
+                  if (isStreaming) {
+                    _stopStreaming();
+                    _startStreaming();
+                  }
+                }
+              },
+              child: CameraView(
+                cameraProvider: _cameraProvider,
+                isZoomEnabled: isZoomEnabled,
+                zoom: zoom,
+                bubbleDiameter: bubbleDiameter,
+              ),
             ),
           ),
           CameraControls(
