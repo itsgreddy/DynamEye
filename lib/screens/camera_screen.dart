@@ -6,6 +6,9 @@ import '../widgets/camera_view.dart';
 import '../widgets/camera_controls.dart';
 import '../services/web_socket_service.dart';
 import '../config.dart';
+import '../controllers/tflite_helper.dart';
+import '../widgets/detection_overlay.dart';
+import '../widgets/threshold_control.dart';
 
 class CameraScreen extends StatefulWidget {
   final List<CameraDescription> cameras;
@@ -20,11 +23,16 @@ class _CameraScreenState extends State<CameraScreen>
     with WidgetsBindingObserver {
   late CameraControllerProvider _cameraProvider;
   late WebSocketService _webSocketService;
-  double zoom = 1.0;
+  double zoom = 2.0;
   double bubbleDiameter = 200.0;
   bool isZoomEnabled = true;
   bool isStreaming = false;
+  bool isDetectionEnabled = false;
+  bool isThresholdVisible = false;
+  int detectionCount = 0;
+  DateTime? lastUpdateTime;
   double _baseZoom = 1.0; // for pinch gesture
+
 
   final String serverUrl = Config.serverUrl;
   final String viewerUrl = Config.viewerUrl;
@@ -33,6 +41,9 @@ class _CameraScreenState extends State<CameraScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+
+    // Initialize TFLite Helper
+    TFLiteHelper.loadModel();
 
     _cameraProvider = CameraControllerProvider(
       cameraDescription: widget.cameras[0],
@@ -45,10 +56,23 @@ class _CameraScreenState extends State<CameraScreen>
 
   void _onCameraProviderChanged() {
     if (!mounted) return;
-    // once controller is initialized, sync our UI zoom to its zoomLevel
-    if (_cameraProvider.isInitialized) {
+
+    // Update zoom level
+    if (_cameraProvider.isInitialized && _cameraProvider.zoomLevel != zoom) {
       setState(() {
         zoom = _cameraProvider.zoomLevel;
+      });
+    }
+
+    // Track detection updates for performance monitoring
+    if (_cameraProvider.detectionResults != null) {
+      final now = DateTime.now();
+      final detections =
+          _cameraProvider.detectionResults!['detections'] as List<dynamic>;
+
+      setState(() {
+        detectionCount = detections.length;
+        lastUpdateTime = now;
       });
     }
   }
@@ -57,11 +81,17 @@ class _CameraScreenState extends State<CameraScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Handle app lifecycle changes
     if (state == AppLifecycleState.inactive) {
-      // Stop streaming and disconnect when app is inactive
       _stopStreaming();
       _webSocketService.disconnect();
+
+      // Disable detection when app is inactive
+      if (isDetectionEnabled) {
+        setState(() {
+          isDetectionEnabled = false;
+          _cameraProvider.disableObjectDetection();
+        });
+      }
     } else if (state == AppLifecycleState.resumed) {
-      // Reconnect when app is resumed
       if (_webSocketService.isConnected.value) {
         _webSocketService.connect();
       }
@@ -72,12 +102,14 @@ class _CameraScreenState extends State<CameraScreen>
   void dispose() {
     _cameraProvider.removeListener(_onCameraProviderChanged);
     WidgetsBinding.instance.removeObserver(this);
-    // Stop streaming without calling setState
+
     if (_cameraProvider.isInitialized) {
       _webSocketService.stopStreaming(_cameraProvider.controller!);
     }
+
     _webSocketService.dispose();
     _cameraProvider.dispose();
+    TFLiteHelper.dispose();
     super.dispose();
   }
 
@@ -119,6 +151,54 @@ class _CameraScreenState extends State<CameraScreen>
         isStreaming = false;
       });
     }
+  }
+
+  void _toggleDetection() {
+    print(
+      'Toggle detection button pressed. Current state: $isDetectionEnabled',
+    );
+
+    try {
+      setState(() {
+        isDetectionEnabled = !isDetectionEnabled;
+
+        if (isDetectionEnabled) {
+          print('Enabling object detection');
+          _cameraProvider.enableObjectDetection();
+
+          // Reset detection metrics
+          detectionCount = 0;
+          lastUpdateTime = DateTime.now();
+
+          // Show threshold control when detection is enabled
+          isThresholdVisible = true;
+        } else {
+          print('Disabling object detection');
+          _cameraProvider.disableObjectDetection();
+
+          // Hide threshold control when detection is disabled
+          isThresholdVisible = false;
+        }
+      });
+    } catch (e, stackTrace) {
+      print('Error toggling detection: $e');
+      print('Stack trace: $stackTrace');
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error toggling detection: $e')));
+
+      setState(() {
+        isDetectionEnabled = false;
+        isThresholdVisible = false;
+      });
+    }
+  }
+
+  void _toggleThresholdControl() {
+    setState(() {
+      isThresholdVisible = !isThresholdVisible;
+    });
   }
 
   void _showQrCodeDialog() {
@@ -167,50 +247,117 @@ class _CameraScreenState extends State<CameraScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Calculate time since last update for feedback
+    String updateStatus = 'No updates yet';
+    if (lastUpdateTime != null) {
+      final now = DateTime.now();
+      final diff = now.difference(lastUpdateTime!).inMilliseconds;
+      updateStatus = 'Last update: ${diff}ms ago';
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('DynamEye'),
         centerTitle: true,
         actions: [
-          // WebSocket buttons commented out for now
-/*          ValueListenableBuilder<bool>(
-            valueListenable: _webSocketService.isConnected,
-            builder: (context, isConnected, child) {
-              return ValueListenableBuilder<String>(
-                valueListenable: _webSocketService.connectionStatus,
-                builder: (context, status, child) {
-                  return Row(
-                    children: [
-                      if (isConnected)
-                        IconButton(
-                          icon: const Icon(Icons.qr_code),
-                          tooltip: 'Show QR Code',
-                          onPressed: _showQrCodeDialog,
-                        ),
-                      IconButton(
-                        icon: Icon(
-                          isConnected ? Icons.link : Icons.link_off,
-                          color: isConnected ? Colors.green : Colors.red,
-                        ),
-                        onPressed: isConnected
-                            ? _webSocketService.disconnect
-                            : _webSocketService.connect,
-                        tooltip: isConnected
-                            ? 'Disconnect'
-                            : 'Connect to server',
-                      ),
-                    ],
-                  );
-                },
-              );
-            },
+          // Object Detection toggle
+          IconButton(
+            icon: Icon(
+              isDetectionEnabled ? Icons.visibility : Icons.visibility_off,
+              color: isDetectionEnabled ? Colors.green : Colors.grey,
+            ),
+            onPressed: _toggleDetection,
+            tooltip:
+                isDetectionEnabled ? 'Disable Detection' : 'Enable Detection',
           ),
-*/        ],
+          // Threshold settings
+          if (isDetectionEnabled)
+            IconButton(
+              icon: Icon(
+                Icons.tune,
+                color: isThresholdVisible ? Colors.amber : Colors.grey,
+              ),
+              onPressed: _toggleThresholdControl,
+              tooltip: 'Adjust Detection Threshold',
+            ),
+          // Detection status indicator
+          if (isDetectionEnabled)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              margin: const EdgeInsets.only(right: 8),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.7),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                'Objects: $detectionCount',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+        ],
       ),
-
       body: Column(
         children: [
+          // Optional debugging info bar
+          if (isDetectionEnabled)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              color: Colors.black,
+              width: double.infinity,
+              child: Text(
+                updateStatus,
+                style: const TextStyle(color: Colors.white, fontSize: 10),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          // Threshold control
+          if (isThresholdVisible)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: ThresholdControl(
+                onThresholdChanged: (value) {
+                  // Refresh detections if threshold changed
+                  if (isDetectionEnabled) {
+                    print('Threshold changed to: ${(value * 100).toInt()}%');
+                  }
+                },
+              ),
+            ),
           Expanded(
+            child: Stack(
+              children: [
+                // Camera View
+                CameraView(
+                  cameraProvider: _cameraProvider,
+                  isZoomEnabled: isZoomEnabled,
+                  zoom: zoom,
+                  bubbleDiameter: bubbleDiameter,
+                ),
+
+                // Object Detection Overlay with AnimatedBuilder
+                if (isDetectionEnabled && _cameraProvider.isInitialized)
+                  AnimatedBuilder(
+                    animation: _cameraProvider,
+                    builder: (context, child) {
+                      final results = _cameraProvider.detectionResults;
+                      final previewSize =
+                          _cameraProvider.controller?.value.previewSize;
+
+                      if (results == null || previewSize == null) {
+                        return const SizedBox.shrink();
+                      }
+
+                      return DetectionOverlay(
+                        results: results,
+                        imageSize: Size(previewSize.height, previewSize.width),
+                      );
+                    },
+                  ),
+              ],
             child: GestureDetector(
               onScaleStart: (_) {
                 _baseZoom = zoom;
@@ -244,7 +391,6 @@ class _CameraScreenState extends State<CameraScreen>
             onZoomChanged: (value) async {
               await _cameraProvider.setZoomLevel(value);
               setState(() => zoom = value);
-              // Update streaming config if active
               if (isStreaming) {
                 _stopStreaming();
                 _startStreaming();
@@ -252,7 +398,6 @@ class _CameraScreenState extends State<CameraScreen>
             },
             onBubbleSizeChanged: (value) {
               setState(() => bubbleDiameter = value);
-              // Update streaming config if active
               if (isStreaming) {
                 _stopStreaming();
                 _startStreaming();
@@ -260,7 +405,6 @@ class _CameraScreenState extends State<CameraScreen>
             },
             onZoomEnabledChanged: (value) {
               setState(() => isZoomEnabled = value);
-              // Update streaming config if active
               if (isStreaming) {
                 _stopStreaming();
                 _startStreaming();
@@ -269,20 +413,6 @@ class _CameraScreenState extends State<CameraScreen>
           ),
         ],
       ),
-      // Streaming / share button commented out for now
-/*      floatingActionButton: ValueListenableBuilder<bool>(
-        valueListenable: _webSocketService.isConnected,
-        builder: (context, isConnected, child) {
-          return FloatingActionButton(
-            onPressed: isConnected ? _toggleStreaming : null,
-            backgroundColor: isConnected
-                ? (isStreaming ? Colors.red : Colors.green)
-                : Colors.grey,
-            tooltip: isStreaming ? 'Stop Streaming' : 'Start Streaming',
-            child: Icon(isStreaming ? Icons.stop : Icons.cast),
-          );
-        },
-      ),
-*/    );
+    );
   }
 }
